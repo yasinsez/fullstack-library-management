@@ -1,0 +1,270 @@
+// Library Management System Database Schema
+// This schema is designed to align with the Java backend models
+
+Project library_management_system {
+  database_type: 'PostgreSQL'
+  Note: 'Comprehensive database schema for library management system'
+}
+
+// Enums
+enum user_status {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum loan_action {
+  CHECKOUT
+  RETURN
+  RENEWAL
+  OVERDUE_NOTICE
+}
+
+enum loan_status {
+  ACTIVE
+  OVERDUE
+  RETURNED
+  LOST
+}
+
+enum copy_status {
+  AVAILABLE
+  CHECKED_OUT
+  IN_REPAIR
+  LOST
+  RESERVED
+}
+
+enum reservation_status {
+  PENDING
+  READY_FOR_PICKUP
+  COMPLETED
+  CANCELLED
+}
+
+enum fine_status {
+  PENDING
+  PAID
+  WAIVED
+  DISPUTED
+}
+
+enum fine_reason {
+  OVERDUE
+  DAMAGED_ITEM
+  LOST_ITEM
+  ADMINISTRATIVE
+}
+
+enum transaction_type {
+  FINE_PAYMENT
+  MEMBERSHIP_FEE
+  LOST_ITEM_FEE
+  RESERVATION_FEE
+  REFUND
+}
+
+// Core Tables
+
+// Base entity fields are included in each table
+table users {
+  id bigint [pk, increment]
+  username varchar(100) [unique, not null]
+  password_hash varchar(255) [not null]
+  full_name varchar(255) [not null]
+  email varchar(255) [unique, not null]
+  phone_number varchar(20)
+  active boolean [default: true]
+  status user_status [default: 'ACTIVE']
+  last_login date
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+// Role management
+table roles {
+  id bigint [pk, increment]
+  name varchar(50) [unique, not null]
+  description text
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+table user_roles {
+  user_id bigint [ref: > users.id]
+  role_id bigint [ref: > roles.id]
+  indexes {
+    (user_id, role_id) [pk]
+  }
+}
+
+// User type specific tables
+table members {
+  user_id bigint [pk, ref: - users.id]
+  membership_start_date date [default: `now()`]
+  membership_end_date date
+  address text
+  fine_balance decimal(10,2) [default: 0]
+}
+
+table librarians {
+  user_id bigint [pk, ref: - users.id]
+  employment_date date
+  employee_id varchar(20) [unique]
+}
+
+table admins {
+  user_id bigint [pk, ref: - users.id]
+  admin_level integer
+  department varchar(100)
+  permissions text
+  last_activity date
+}
+
+// Book catalog
+table authors {
+  id bigint [pk, increment]
+  name varchar(255) [not null]
+  biography text
+  birth_date date
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+table publishers {
+  id bigint [pk, increment]
+  name varchar(255) [not null]
+  address text
+  contact varchar(100)
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+table categories {
+  id bigint [pk, increment]
+  name varchar(100) [unique, not null]
+  description text
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+table books {
+  id bigint [pk, increment]
+  title varchar(255) [not null]
+  isbn varchar(13) [unique, not null]
+  publication_year integer
+  description text
+  cover_image varchar(255)
+  pages integer
+  publisher_id bigint [ref: > publishers.id]
+  category_id bigint [ref: > categories.id]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+// Many-to-many relationship for book authors
+table book_authors {
+  book_id bigint [ref: > books.id]
+  author_id bigint [ref: > authors.id]
+  indexes {
+    (book_id, author_id) [pk]
+  }
+}
+
+// Physical book copies
+table book_copies {
+  id bigint [pk, increment]
+  book_id bigint [not null, ref: > books.id]
+  acquisition_date date
+  condition varchar(50)
+  status copy_status [default: 'AVAILABLE']
+  location varchar(100)
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+// Loan system
+table loans {
+  id bigint [pk, increment]
+  member_id bigint [not null, ref: > members.user_id]
+  book_copy_id bigint [not null, ref: > book_copies.id]
+  checkout_date date [not null, default: `now()`]
+  due_date date [not null]
+  return_date date
+  status loan_status [default: 'ACTIVE']
+  renewal_count integer [default: 0]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+// Reservation system
+table reservations {
+  id bigint [pk, increment]
+  member_id bigint [not null, ref: > members.user_id]
+  book_id bigint [not null, ref: > books.id]
+  reservation_time timestamp [default: `now()`]
+  status reservation_status [default: 'PENDING']
+  priority_number integer
+}
+
+// Financial system
+table fines {
+  id bigint [pk, increment]
+  member_id bigint [not null, ref: > members.user_id]
+  loan_id bigint [ref: > loans.id]
+  amount decimal(10,2) [not null]
+  reason fine_reason [not null]
+  issue_date date [default: `now()`]
+  due_date date
+  status fine_status [default: 'PENDING']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+table transactions {
+  id bigint [pk, increment]
+  member_id bigint [ref: > members.user_id]
+  fine_id bigint [ref: > fines.id]
+  date date [default: `now()`]
+  amount decimal(10,2) [not null]
+  type transaction_type [not null]
+  description text
+  payment_method varchar(50)
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+// Receipts for transactions
+table receipts {
+  id bigint [pk, increment]
+  transaction_id bigint [not null, ref: > transactions.id]
+  issue_date date [default: `now()`]
+  items text [note: 'JSON array of ReceiptItem objects']
+  total decimal(10,2) [not null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+// Loan history for tracking
+table loan_history {
+  id bigint [pk, increment]
+  member_id bigint [not null, ref: > members.user_id]
+  loan_id bigint [not null, ref: > loans.id]
+  book_id bigint [not null, ref: > books.id]
+  action loan_action [not null]
+  action_date date [default: `now()`]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+// Reports table for system reports
+table reports {
+  id bigint [pk, increment]
+  title varchar(255) [not null]
+  start_date date
+  end_date date
+  content text [note: 'JSON object storing key-value pairs']
+  generated_by varchar(255)
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+} 
