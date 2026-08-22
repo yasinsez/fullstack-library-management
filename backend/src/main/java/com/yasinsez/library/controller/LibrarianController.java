@@ -25,7 +25,7 @@ public class LibrarianController {
 
     @POST
     @Path("/checkout")
-    @RolesAllowed({ "LIBRARIAN", "ADMIN", "MEMBER" })
+    @RolesAllowed({ "LIBRARIAN", "ADMIN" })
     @Operation(summary = "Checkout a book for a member")
     public Response checkoutBook(@QueryParam("bookId") Long bookId, @QueryParam("userId") Long userId) {
         try {

@@ -63,8 +63,10 @@ public class FineController {
     @Path("/{id}/pay")
     @RolesAllowed({ "MEMBER", "ADMIN", "LIBRARIAN" })
     @Operation(summary = "Mark a fine as paid")
-    public Response payFine(@PathParam("id") Long id) {
-        fineService.payFine(id);
+    public Response payFine(@PathParam("id") Long id, @Context SecurityContext securityContext) {
+        boolean isStaff = securityContext.isUserInRole("ADMIN") || securityContext.isUserInRole("LIBRARIAN");
+        String username = securityContext.getUserPrincipal() != null ? securityContext.getUserPrincipal().getName() : null;
+        fineService.payFineForUser(id, username, isStaff);
         return Response.noContent().build();
     }
 }

@@ -2,15 +2,12 @@ package com.yasinsez.library.service;
 
 import com.yasinsez.library.repository.UserRepository;
 import com.yasinsez.library.model.User;
+import io.quarkus.elytron.security.common.BcryptUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.Optional;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -40,9 +37,8 @@ public class SecurityService {
         }
 
         User user = userOpt.get();
-        String hashedPassword = hashPassword(password);
 
-        if (user.getPasswordHash().equals(hashedPassword) && user.getActive()) {
+        if (user.getPasswordHash() != null && BcryptUtil.matches(password, user.getPasswordHash()) && Boolean.TRUE.equals(user.getActive())) {
             return user;
         }
 
@@ -52,17 +48,15 @@ public class SecurityService {
     @Transactional
     public boolean changePassword(Long userId, String currentPassword, String newPassword) {
         User user = userRepository.findById(userId);
-        if (user == null) {
+        if (user == null || user.getPasswordHash() == null) {
             return false;
         }
 
-        String currentHashed = hashPassword(currentPassword);
-        if (!user.getPasswordHash().equals(currentHashed)) {
+        if (!BcryptUtil.matches(currentPassword, user.getPasswordHash())) {
             return false;
         }
 
-        String newHashed = hashPassword(newPassword);
-        user.setPasswordHash(newHashed);
+        user.setPasswordHash(BcryptUtil.bcryptHash(newPassword));
         userRepository.persist(user);
 
         return true;
@@ -77,27 +71,17 @@ public class SecurityService {
     }
 
     public String hashPassword(String password) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder();
-
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) {
-                    hexString.append('0');
-                }
-                hexString.append(hex);
-            }
-
-            return hexString.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 algorithm not available", e);
+        if (password == null) {
+            throw new IllegalArgumentException("Password cannot be null");
         }
+        return BcryptUtil.bcryptHash(password);
     }
 
     public boolean verifyPassword(String password, String storedHash) {
-        return hashPassword(password).equals(storedHash);
+        if (password == null || storedHash == null) {
+            return false;
+        }
+        return BcryptUtil.matches(password, storedHash);
     }
 
     public String generateVerificationToken(Long userId) {

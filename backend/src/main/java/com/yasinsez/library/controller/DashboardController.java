@@ -2,6 +2,7 @@ package com.yasinsez.library.controller;
 
 import com.yasinsez.library.model.Loan;
 import com.yasinsez.library.model.Reservation;
+import com.yasinsez.library.repository.MemberRepository;
 import com.yasinsez.library.service.LoanService;
 import com.yasinsez.library.service.ReservationService;
 import jakarta.annotation.security.PermitAll;
@@ -18,6 +19,7 @@ import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
+import java.util.Collections;
 import java.util.List;
 
 @Path("/api/dashboard")
@@ -33,14 +35,21 @@ public class DashboardController {
     @Inject
     ReservationService reservationService;
 
+    @Inject
+    MemberRepository memberRepository;
+
     @GET
     @Path("/loans")
     @RolesAllowed({ "MEMBER", "LIBRARIAN", "ADMIN" })
     @Operation(summary = "Get the current member's borrowed books")
     public List<Loan> getMyLoans(@Context SecurityContext securityContext) {
-        // In a real application, you would get the member ID from the security context
-        Long memberId = 1L; // Hardcoded for now
-        return loanService.getLoansForMember(memberId);
+        if (securityContext.getUserPrincipal() == null) {
+            return Collections.emptyList();
+        }
+        String username = securityContext.getUserPrincipal().getName();
+        return memberRepository.findByUsername(username)
+                .map(m -> loanService.getLoansForMember(m.getId()))
+                .orElse(Collections.emptyList());
     }
 
     @GET
@@ -48,8 +57,12 @@ public class DashboardController {
     @RolesAllowed({ "MEMBER", "LIBRARIAN", "ADMIN" })
     @Operation(summary = "Get the current member's reservations")
     public List<Reservation> getMyReservations(@Context SecurityContext securityContext) {
-        // In a real application, you would get the member ID from the security context
-        Long memberId = 1L; // Hardcoded for now
-        return reservationService.getReservationsByMember(memberId);
+        if (securityContext.getUserPrincipal() == null) {
+            return Collections.emptyList();
+        }
+        String username = securityContext.getUserPrincipal().getName();
+        return memberRepository.findByUsername(username)
+                .map(m -> reservationService.getReservationsByMember(m.getId()))
+                .orElse(Collections.emptyList());
     }
 }

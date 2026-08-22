@@ -20,6 +20,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.InternalServerErrorException;
 import org.slf4j.Logger;
@@ -151,6 +152,21 @@ public class LoanService {
         return loanRepository.findReturnedLoansByMember(member).stream()
                 .map(LoanMapper::toResponseDTO)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void returnBookForUser(Long loanId, String username, boolean isStaff) {
+        Loan loan = loanRepository.findByIdOptional(loanId)
+                .orElseThrow(() -> new NotFoundException("Loan not found"));
+
+        if (!isStaff) {
+            if (loan.getMember() == null || loan.getMember().getUser() == null ||
+                    !loan.getMember().getUser().getUsername().equals(username)) {
+                throw new ForbiddenException("You are not authorized to return this loan.");
+            }
+        }
+
+        returnBook(loanId);
     }
 
     @Transactional

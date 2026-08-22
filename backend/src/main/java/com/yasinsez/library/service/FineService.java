@@ -10,6 +10,7 @@ import com.yasinsez.library.repository.MemberRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.NotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,22 @@ public class FineService {
     }
 
     @Transactional
+    public Fine payFineForUser(Long fineId, String username, boolean isStaff) {
+        log.info("Processing payment for fine {} by user {}", fineId, username);
+        Fine fine = fineRepository.findByIdOptional(fineId)
+                .orElseThrow(() -> new NotFoundException("Fine not found"));
+
+        if (!isStaff) {
+            if (fine.getMember() == null || fine.getMember().getUser() == null ||
+                    !fine.getMember().getUser().getUsername().equals(username)) {
+                throw new ForbiddenException("You are not authorized to pay this fine.");
+            }
+        }
+
+        return payFine(fineId);
+    }
+
+    @Transactional
     public Fine payFine(Long fineId) {
         log.info("Processing payment for fine {}", fineId);
         Fine fine = fineRepository.findByIdOptional(fineId)
@@ -45,8 +62,10 @@ public class FineService {
         fine.setStatus(FineStatus.PAID);
 
         Member member = fine.getMember();
-        BigDecimal currentBalance = member.getFineBalance() == null ? BigDecimal.ZERO : member.getFineBalance();
-        member.setFineBalance(currentBalance.subtract(fine.getAmount()));
+        if (member != null) {
+            BigDecimal currentBalance = member.getFineBalance() == null ? BigDecimal.ZERO : member.getFineBalance();
+            member.setFineBalance(currentBalance.subtract(fine.getAmount()));
+        }
 
         return fine;
     }

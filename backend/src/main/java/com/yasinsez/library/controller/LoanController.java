@@ -58,10 +58,14 @@ public class LoanController {
     @Path("/{loanId}/return")
     @RolesAllowed({ "MEMBER", "ADMIN", "LIBRARIAN" })
     @Operation(summary = "Return a book")
-    public Response returnBook(@PathParam("loanId") Long loanId) {
+    public Response returnBook(@PathParam("loanId") Long loanId, @Context SecurityContext securityContext) {
         try {
-            loanService.returnBook(loanId);
+            boolean isStaff = securityContext.isUserInRole("ADMIN") || securityContext.isUserInRole("LIBRARIAN");
+            String username = securityContext.getUserPrincipal() != null ? securityContext.getUserPrincipal().getName() : null;
+            loanService.returnBookForUser(loanId, username, isStaff);
             return Response.ok().build();
+        } catch (jakarta.ws.rs.ForbiddenException e) {
+            return Response.status(Response.Status.FORBIDDEN).entity(e.getMessage()).build();
         } catch (Exception e) {
             return Response.status(Response.Status.BAD_REQUEST).entity(e.getMessage()).build();
         }
